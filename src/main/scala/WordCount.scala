@@ -10,6 +10,12 @@ import java.util.Arrays
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisClusterConfig
 import java.util.LinkedHashSet
 
+/**
+ * --input source data
+ * --output redis cluster ip
+ * 
+ * --Dredis.host same as --output
+ * */
 object WordCount {
 
   def main(args: Array[String]) {
@@ -25,21 +31,17 @@ object WordCount {
     // make parameters available in the web interface
     env.getConfig.setGlobalJobParameters(params)
 
-    //set up redis connection
-//    val conf = new FlinkJedisPoolConfig.Builder().setHost(output).setPort(7000).build()
+    //set up redis cluster connection
     val node1 = new InetSocketAddress(output, 7000);
     val node2 = new InetSocketAddress(output, 7001);
     val node3 = new InetSocketAddress(output, 7002);
-    val node4 = new InetSocketAddress(output, 7003);
-    val node5 = new InetSocketAddress(output, 7005);
-    val node6 = new InetSocketAddress(output, 7006);
+
     val cluster = new LinkedHashSet[InetSocketAddress]();
     cluster.add(node1);
     cluster.add(node2);
     cluster.add(node3);
-    cluster.add(node4);
-    cluster.add(node5);
-    cluster.add(node6);
+
+
     
     val conf = new FlinkJedisClusterConfig.Builder().setNodes(cluster).build()
     // get input data
@@ -56,9 +58,10 @@ object WordCount {
       .keyBy(0)
       .sum(1)
 
+    val sink = new RedisSink[(String, Int)](conf, new RedisExampleMapper)
     
-    counts.addSink(new RedisSink[(String, Int)](conf, new RedisExampleMapper))
-    counts.writeAsText(output)
+    counts.addSink(sink)
+//    counts.writeAsText(output)// We do not want to write on the local filesystem.
     counts.print()
 
     // execute program
@@ -70,8 +73,7 @@ object WordCount {
 }
 class RedisExampleMapper extends RedisMapper[(String, Int)]{
   override def getCommandDescription: RedisCommandDescription = {
-    new RedisCommandDescription(RedisCommand.HSET, "HASH_NAME")
-//    new RedisCommandDescription(RedisCommand.SET, null)
+    new RedisCommandDescription(RedisCommand.SET, null)
   }
 
   override def getKeyFromData(data: (String, Int)): String = data._1
